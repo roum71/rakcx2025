@@ -624,7 +624,7 @@ with tab_kpis:
 # 🧩 DIMENSIONS TAB — تحليل الأبعاد (تنسيق + ثنائية اللغة)
 # =========================================================
 # =========================================================
-# 🧩 DIMENSIONS TAB — تحليل الأبعاد (ألوان داكنة + وسيلة إيضاح تفاعلية)
+# 🧩 DIMENSIONS TAB — تحليل الأبعاد (ألوان مطابقة للوسيلة)
 # =========================================================
 with tab_dimensions:
     all_dim_cols = [c for c in df.columns if re.match(r"Dim\d+\.", c.strip())]
@@ -647,7 +647,7 @@ with tab_dimensions:
                 summary.append({"Dimension": dim, "Score": avg})
         dims = pd.DataFrame(summary).dropna()
 
-        # إضافة أسماء الأبعاد من ملف الأسئلة
+        # إضافة أسماء الأبعاد
         if "QUESTIONS" in lookup_catalog:
             qtbl = lookup_catalog["QUESTIONS"]
             qtbl.columns = [c.strip().upper() for c in qtbl.columns]
@@ -656,13 +656,10 @@ with tab_dimensions:
             en_col = next((c for c in qtbl.columns if "ENGLISH" in c), None)
             if code_col and ar_col and en_col:
                 qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip()
-                name_map = dict(zip(
-                    qtbl["CODE_NORM"],
-                    qtbl[ar_col if lang == "العربية" else en_col]
-                ))
+                name_map = dict(zip(qtbl["CODE_NORM"], qtbl[ar_col if lang == "العربية" else en_col]))
                 dims["Dimension_name"] = dims["Dimension"].map(name_map)
 
-        # الحفاظ على الترتيب Dim1 → Dim5
+        # الحفاظ على الترتيب
         dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
         dims = dims.sort_values("Order")
 
@@ -679,15 +676,14 @@ with tab_dimensions:
 
         dims["Category"] = dims["Score"].apply(get_category)
 
-        # 🎨 خريطة ألوان داكنة وواضحة
+        # خريطة الألوان حسب الفئة
         color_map = {
-            "🔴 ضعيف الأداء / Weak": "#D62828",   # أحمر داكن
-            "🟡 متوسط / Average": "#F4A300",     # أصفر ذهبي داكن
-            "🟢 جيد / Good": "#2A9D8F",          # أخضر زمردي داكن
-            "🔵 ممتاز / Excellent": "#1D4ED8"     # أزرق ملكي داكن
+            "🔴 ضعيف الأداء / Weak": "#FF6B6B",
+            "🟡 متوسط / Average": "#FFD93D",
+            "🟢 جيد / Good": "#6BCB77",
+            "🔵 ممتاز / Excellent": "#4D96FF"
         }
 
-        # عناوين الرسم
         chart_title = "📊 تحليل متوسط الأبعاد / Average Dimensions Analysis"
         x_axis_title = "الأبعاد / Dimensions"
         y_axis_title = "النسبة المئوية (%) / Percentage (%)"
@@ -701,18 +697,13 @@ with tab_dimensions:
             x=x_col,
             y="Score",
             text="Score",
-            color="Category",
+            color="Category",  # ← نستخدم الفئة بدلاً من الأكواد
             color_discrete_map=color_map,
             title=chart_title,
             category_orders={x_col: category_order}
         )
 
-        fig.update_traces(
-            texttemplate="%{text:.1f}%",
-            textposition="outside",
-            marker_line_color="white",
-            marker_line_width=1.5
-        )
+        fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
 
         fig.update_layout(
             title=dict(
@@ -724,26 +715,15 @@ with tab_dimensions:
             xaxis_title=x_axis_title,
             yaxis_title=y_axis_title,
             yaxis=dict(range=[0, 100]),
-            showlegend=True,
-            legend_title_text="فئة الأداء / Performance Category",
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=-0.3,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=12)
-            ),
-            margin=dict(t=60, b=80),
+            showlegend=True,  # ← تفعيل وسيلة الإيضاح
+            margin=dict(t=60, b=40),
             uniformtext_minsize=8,
-            uniformtext_mode="hide",
-            plot_bgcolor="#FAFAFA",
-            paper_bgcolor="#FFFFFF"
+            uniformtext_mode="hide"
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # وسيلة الإيضاح ثنائية اللغة (ثابتة أسفل الرسم)
+        # وسيلة الإيضاح ثنائية اللغة
         st.markdown(bi_text(
             """
             **🗂️ وسيلة الإيضاح:**
@@ -761,7 +741,7 @@ with tab_dimensions:
             """
         ), unsafe_allow_html=True)
 
-        # عرض الجدول النهائي
+        # عرض الجدول
         display_cols = ["Dimension", "Dimension_name", "Score"]
         dims = dims[display_cols]
 
@@ -775,7 +755,6 @@ with tab_dimensions:
             use_container_width=True,
             hide_index=True
         )
-
 
 # =========================================================
 # 📋 SERVICES TAB — تحليل الخدمات (Happiness / Value / NPS)
@@ -1122,6 +1101,7 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 
 
