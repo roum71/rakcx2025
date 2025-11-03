@@ -60,7 +60,7 @@ PASTEL = px.colors.qualitative.Pastel
 
 # 🔗 ضع هنا رابط الصورة من GitHub (raw)
 #logo_url = "https://raw.githubusercontent.com/roum71/rakcx2025/main/assets/logo_gsec_full.png"
-logo_url = "https://raw.githubusercontent.com/roum71/rakcx2025/main/assets/mini_header.png"
+logo_url = "https://raw.githubusercontent.com/roum71/rakcx2025/main/assets/mini_header2.png"
 
 st.markdown(f"""
     <div style="text-align:center; margin-top:-40px;">
@@ -1105,6 +1105,7 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 
 
