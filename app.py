@@ -624,11 +624,11 @@ with tab_kpis:
 # 🧩 DIMENSIONS TAB — تحليل الأبعاد (تنسيق + ثنائية اللغة)
 # =========================================================
 with tab_dimensions:
-#   st.subheader(bi_text("🧩 تحليل الأبعاد", "Dimension Analysis"))
-#   st.info(bi_text(
-#        "تحليل متوسط الأبعاد بناءً على استبيانات المتعاملين.",
-#       "Analysis of average dimensions based on customer surveys."
-#    ))
+    # st.subheader(bi_text("🧩 تحليل الأبعاد", "Dimension Analysis"))
+    # st.info(bi_text(
+    #     "تحليل متوسط الأبعاد بناءً على استبيانات المتعاملين.",
+    #     "Analysis of average dimensions based on customer surveys."
+    # ))
 
     all_dim_cols = [c for c in df.columns if re.match(r"Dim\d+\.", c.strip())]
 
@@ -643,6 +643,7 @@ with tab_dimensions:
                 main_dims[f"Dim{i}"] = df[sub_cols].mean(axis=1)
                 df[f"Dim{i}"] = main_dims[f"Dim{i}"]
 
+        # تلخيص النتائج
         summary = []
         for dim in [f"Dim{i}" for i in range(1, 6)]:
             if dim in df.columns:
@@ -659,7 +660,10 @@ with tab_dimensions:
             en_col = next((c for c in qtbl.columns if "ENGLISH" in c), None)
             if code_col and ar_col and en_col:
                 qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip()
-                name_map = dict(zip(qtbl["CODE_NORM"], qtbl[ar_col if lang == "العربية" else en_col]))
+                name_map = dict(zip(
+                    qtbl["CODE_NORM"],
+                    qtbl[ar_col if lang == "العربية" else en_col]
+                ))
                 dims["Dimension_name"] = dims["Dimension"].map(name_map)
 
         # الحفاظ على الترتيب Dim1 → Dim5
@@ -669,62 +673,57 @@ with tab_dimensions:
         # الألوان حسب النسبة
         def get_color(score):
             if score < 70:
-                return "#FF6B6B"  # أحمر
+                return "#FF6B6B"  # 🔴 أحمر
             elif score < 80:
-                return "#FFD93D"  # أصفر
+                return "#FFD93D"  # 🟡 أصفر
             elif score < 90:
-                return "#6BCB77"  # أخضر
+                return "#6BCB77"  # 🟢 أخضر
             else:
-                return "#4D96FF"  # أزرق
+                return "#4D96FF"  # 🔵 أزرق
 
         dims["Color"] = dims["Score"].apply(get_color)
 
-        # عنوان الرسم ومحاوره بالعربية والإنجليزية
+        # عنوان الرسم ومحاوره
         chart_title = "📊 تحليل متوسط الأبعاد / Average Dimensions Analysis"
         x_axis_title = "الأبعاد / Dimensions"
         y_axis_title = "النسبة المئوية (%) / Percentage (%)"
 
-        # الرسم البياني
-      # Determine which column to use for the x-axis
-x_col = "Dimension_name" if "Dimension_name" in dims.columns else "Dimension"
+        # تحديد العمود المستخدم في المحور X
+        x_col = "Dimension_name" if "Dimension_name" in dims.columns else "Dimension"
 
-# Sort the data by the 'Order' column
-category_order = dims.sort_values("Order")[x_col].tolist()
+        # ترتيب الفئات
+        category_order = dims.sort_values("Order")[x_col].tolist()
 
-# Create the bar chart
-fig = px.bar(
-    dims,
-    x=x_col,
-    y="Score",
-    text="Score",
-    color="Color",
-    title=chart_title,
-    category_orders={x_col: category_order}
-)
+        # إنشاء الرسم البياني
+        fig = px.bar(
+            dims,
+            x=x_col,
+            y="Score",
+            text="Score",
+            color="Color",
+            title=chart_title,
+            category_orders={x_col: category_order}
+        )
 
-# Optional: improve layout
-fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-fig.update_layout(xaxis_title="", yaxis_title="Score", uniformtext_minsize=8, uniformtext_mode='hide')
-
-fig.show()
-
-
+        # تنسيق النصوص داخل الأعمدة
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
 
+        # تحسين تنسيق الرسم
         fig.update_layout(
-    title=dict(
-        text=chart_title,
-        x=0.5,  # 📍 العنوان في المنتصف
-        xanchor="center",
-        font=dict(size=18, family="Cairo, sans-serif", color="#333")
-    ),
-    xaxis_title=x_axis_title,
-    yaxis_title=y_axis_title,
-    yaxis=dict(range=[0, 100]),
-    showlegend=False,
-    margin=dict(t=60, b=40)
-)
-
+            title=dict(
+                text=chart_title,
+                x=0.5,
+                xanchor="center",
+                font=dict(size=18, family="Cairo, sans-serif", color="#333")
+            ),
+            xaxis_title=x_axis_title,
+            yaxis_title=y_axis_title,
+            yaxis=dict(range=[0, 100]),
+            showlegend=False,
+            margin=dict(t=60, b=40),
+            uniformtext_minsize=8,
+            uniformtext_mode="hide"
+        )
 
         st.plotly_chart(fig, use_container_width=True)
 
@@ -746,7 +745,7 @@ fig.show()
             """
         ), unsafe_allow_html=True)
 
-        # عرض الجدول بنفس المنطق القديم + ترجمة العناوين
+        # عرض الجدول
         display_cols = ["Dimension", "Dimension_name", "Score"]
         dims = dims[display_cols]
 
@@ -760,6 +759,7 @@ fig.show()
             use_container_width=True,
             hide_index=True
         )
+
 # =========================================================
 # 📋 SERVICES TAB — تحليل الخدمات (Happiness / Value / NPS)
 # =========================================================
@@ -1105,6 +1105,7 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 
 
