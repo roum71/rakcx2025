@@ -462,8 +462,8 @@ with tab_kpis:
     st.subheader(bi_text("📊 مؤشرات الأداء الرئيسية (السعادة / القيمة / صافي نقاط الترويج)",
                          "Key Performance Indicators (Happiness / Value / NPS)"))
     st.info(bi_text(
-        "يعرض هذا القسم نتائج المؤشرات الثلاثة مع تدرج الألوان وفقًا لأفضل الممارسات.",
-        "This section shows the three key indicators with color bins aligned to best practices."
+        "يعرض هذا القسم نتائج المؤشرات الثلاثة.",
+        "This section shows the three key indicators ."
     ))
 
     # 🧮 حساب المؤشرات من البيانات
@@ -685,15 +685,21 @@ with tab_dimensions:
         y_axis_title = "النسبة المئوية (%) / Percentage (%)"
 
         # الرسم البياني
-        fig = px.bar(
-            dims,
-            x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
-            y="Score",
-            text="Score",
-            color="Color",
-            color_discrete_map="identity",
-            title=chart_title
-        )
+       fig = px.bar(
+    dims,
+    x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
+    y="Score",
+    text="Score",
+    color="Color",
+    color_discrete_map="identity",
+    title=chart_title,
+    category_orders={
+        "Dimension_name": dims.sort_values("Order")["Dimension_name"].tolist()
+        if "Dimension_name" in dims.columns
+        else dims.sort_values("Order")["Dimension"].tolist()
+    }
+)
+
 
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
 
@@ -928,7 +934,7 @@ with tab_services:
 # 💬 PARETO TAB — تحليل الملاحظات النوعية
 # =========================================================
 with tab_pareto:
-    st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
+    st.subheader(bi_text("💬 تحليل المزعجات ", "Customer Comments )"))
     st.info(bi_text(
         "تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا",
         "Qualitative analysis of comments to identify top dissatisfaction reasons."
@@ -1091,6 +1097,7 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 
 
