@@ -685,20 +685,28 @@ with tab_dimensions:
         y_axis_title = "النسبة المئوية (%) / Percentage (%)"
 
         # الرسم البياني
-       fig = px.bar(
+      # Determine which column to use for the x-axis
+x_col = "Dimension_name" if "Dimension_name" in dims.columns else "Dimension"
+
+# Sort the data by the 'Order' column
+category_order = dims.sort_values("Order")[x_col].tolist()
+
+# Create the bar chart
+fig = px.bar(
     dims,
-    x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
+    x=x_col,
     y="Score",
     text="Score",
     color="Color",
-    color_discrete_map="identity",
     title=chart_title,
-    category_orders={
-        "Dimension_name": dims.sort_values("Order")["Dimension_name"].tolist()
-        if "Dimension_name" in dims.columns
-        else dims.sort_values("Order")["Dimension"].tolist()
-    }
+    category_orders={x_col: category_order}
 )
+
+# Optional: improve layout
+fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+fig.update_layout(xaxis_title="", yaxis_title="Score", uniformtext_minsize=8, uniformtext_mode='hide')
+
+fig.show()
 
 
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
@@ -1097,6 +1105,7 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 
 
