@@ -294,7 +294,7 @@ with tab_sample:
             )
             fig.update_traces(
                 textposition="inside",
-                texttemplate="%{label}<br>%{percent:.1%}"
+                texttemplate="%{label}<br>%{percent:.1%}",
                 title=f"التوزيع حسب {col}"
             )
 
