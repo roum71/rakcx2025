@@ -197,79 +197,101 @@ with tab_data:
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # =========================================================
-# تبويب توزيع العينة (عرض بسيط بدون أي تحليل Pareto)
+# تبويب توزيع العينة
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
-
     total = len(df_view)
-    st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
+    st.markdown(f"### 🧮 إجمالي الردود: <span style='color:#1E88E5;'>{total:,}</span>", unsafe_allow_html=True)
 
-    # ✅ اختيار نوع الرسم
+    # نوع الرسم
     chart_type = st.radio("📊 نوع الرسم", ["مخطط أعمدة", "مخطط دائري"], index=0, horizontal=True)
 
-    # ✅ اختيار عرض العدد أو النسبة
-    show_percentage = st.checkbox("عرض النسبة المئوية بدل العدد", value=False)
+    # خيار عرض العدد أو النسبة أو كليهما
+    display_mode = st.radio(
+        "📋 طريقة العرض:",
+        ["العدد فقط", "النسبة فقط", "العدد + النسبة"],
+        horizontal=True,
+        index=1
+    )
 
+    # معالجة الأعمدة المحتملة
     for col in candidate_filter_cols:
         if col not in df_view.columns:
             continue
 
-        # حساب التوزيع
-        counts = df_view[col].value_counts(dropna=False, sort=False).reset_index()
+        counts = df_view[col].value_counts(dropna=True).reset_index()
         counts.columns = [col, "Count"]
+        if counts.empty:
+            continue
+
         counts["Percentage"] = counts["Count"] / counts["Count"].sum() * 100
 
-        # اختيار العمود المعروض
-        y_col = "Percentage" if show_percentage else "Count"
-        y_label = "النسبة المئوية (%)" if show_percentage else "عدد الردود"
+        # تحديد العمود المستخدم حسب اختيار المستخدم
+        if display_mode == "العدد فقط":
+            y_col = "Count"
+            y_label = "عدد الردود"
+            text_col = counts["Count"].astype(str)
+        elif display_mode == "النسبة فقط":
+            y_col = "Percentage"
+            y_label = "النسبة (%)"
+            text_col = counts["Percentage"].map("{:.1f}%".format)
+        else:
+            y_col = "Count"
+            y_label = "عدد الردود"
+            text_col = counts.apply(lambda x: f"{x['Count']} ({x['Percentage']:.1f}%)", axis=1)
 
-        # 🎨 إعداد الرسم
+        # === رسم المخطط ===
         if chart_type == "مخطط أعمدة":
             fig = px.bar(
                 counts,
                 x=col,
                 y=y_col,
-                text_auto=True,
-                color_discrete_sequence=["#5DADE2"],  # لون موحد
-                title=f"توزيع الردود حسب {col}"
+                text=text_col,
+                color=col,
+                color_discrete_sequence=PASTEL,
+                title=f"توزيع — {col}"
             )
-            fig.update_traces(
-                texttemplate="%{text:.1f}%" if show_percentage else "%{text}",
-                textposition="outside"
-            )
+            fig.update_traces(textposition="outside")
             fig.update_layout(
-                xaxis_title=col,
+                xaxis_title="الفئة",
                 yaxis_title=y_label,
                 showlegend=False,
-                height=450
+                height=500
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        else:  # 🎯 مخطط دائري
+        else:  # === مخطط دائري ===
             fig = px.pie(
                 counts,
                 names=col,
-                values=y_col,
+                values="Count",
                 hole=0.3,
+                color=col,
                 color_discrete_sequence=PASTEL,
-                title=f"التوزيع النسبي حسب {col}"
+                title=f"التوزيع حسب {col}"
             )
-            fig.update_traces(
-                textposition="inside",
-                texttemplate="%{label}<br>%{percent:.1%}"
-            )
+
+            # تعديل النص حسب اختيار المستخدم
+            if display_mode == "العدد فقط":
+                fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{value}")
+            elif display_mode == "النسبة فقط":
+                fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{percent:.1%}")
+            else:  # كلاهما
+                fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{value} (%{percent:.1%})")
+
             st.plotly_chart(fig, use_container_width=True)
 
-        # ✅ جدول تلخيصي أسفل الرسم
+        # جدول ملخص تحت المخطط
         st.dataframe(
-            counts[[col, "Count", "Percentage"]]
-            .rename(columns={"Count": "العدد", "Percentage": "النسبة %"})
-            .style.format({"النسبة %": "{:.1f}%"}),
+            counts[[col, "Count", "Percentage"]].rename(columns={
+                col: "الفئة",
+                "Count": "عدد الردود",
+                "Percentage": "النسبة (%)"
+            }).style.format({"النسبة (%)": "{:.1f}%"}),
             use_container_width=True,
             hide_index=True
         )
-
 
 # =========================================================
 # تبويب المؤشرات (CSAT / CES / NPS)
