@@ -121,25 +121,36 @@ common_keys = ["Language", "SERVICE", "AGE", "PERIOD", "CHANNEL"]
 candidate_filter_cols = [c for c in df.columns if any(k in c.upper() for k in common_keys)]
 
 # وظيفة لتطبيق جدول lookup إذا توفّر باسم العمود
+
+# وظيفة لتطبيق جدول lookup (تربط تلقائيًا بين الأكواد والأسماء العربية)
 def apply_lookup(column_name: str, s: pd.Series) -> pd.Series:
     key = column_name.strip().upper()
-    if key in lookup_catalog:
-        tbl = lookup_catalog[key].copy()
-        tbl.columns = [str(c).strip().upper() for c in tbl.columns]
-        # نحاول إيجاد أعمدة (CODE/ID) و (ARABIC / SERVICE2) للاسم العربي
-        code_col = next((c for c in tbl.columns if "CODE" in c or key in c), None)
-        ar_col   = next((c for c in tbl.columns if ("ARABIC" in c) or ("SERVICE2" in c)), None)
-        if code_col and ar_col:
-            map_dict = dict(zip(tbl[code_col].astype(str), tbl[ar_col].astype(str)))
-            return s.astype(str).map(map_dict).fillna(s)
-    return s
+    # نحاول إيجاد جدول مطابق جزئياً في ملفات الوصف
+    match_key = next((k for k in lookup_catalog.keys() if key in k or k in key), None)
+    if not match_key:
+        return s
+
+    tbl = lookup_catalog[match_key].copy()
+    tbl.columns = [str(c).strip().upper() for c in tbl.columns]
+    if len(tbl.columns) < 2:
+        return s
+
+    code_col = tbl.columns[0]
+    name_col = tbl.columns[1]
+    map_dict = dict(zip(tbl[code_col].astype(str), tbl[name_col].astype(str)))
+    return s.astype(str).map(map_dict).fillna(s)
+
+# نُحضّر نسخة مترجمة للعرض في الفلاتر
+df_filtered_display = df_filtered.copy()
+for col in candidate_filter_cols:
+    df_filtered_display[col] = apply_lookup(col, df_filtered[col])
 
 with st.sidebar.expander("تطبيق/إزالة الفلاتر"):
     applied_filters = {}
     for col in candidate_filter_cols:
         # طبّق الترجمة العربية إن وُجدت
         df_filtered[col] = apply_lookup(col, df_filtered[col])
-        options = df_filtered[col].dropna().unique().tolist()
+        options = df_filtered_display[col].dropna().unique().tolist()
         options_sorted = sorted(options, key=lambda x: str(x))
         default = options_sorted  # افتراضيًا: الكل
         sel = st.multiselect(f"{col}", options_sorted, default=default)
