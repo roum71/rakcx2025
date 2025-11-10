@@ -197,7 +197,7 @@ with tab_data:
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # =========================================================
-# تبويب توزيع العينة (عرض بسيط دون تحليل Pareto)
+# تبويب توزيع العينة (عرض بسيط بدون أي تحليل Pareto)
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
@@ -205,58 +205,63 @@ with tab_sample:
     total = len(df_view)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
 
-    # اختيار نوع الرسم
+    # ✅ اختيار نوع الرسم
     chart_type = st.radio("📊 نوع الرسم", ["مخطط أعمدة", "مخطط دائري"], index=0, horizontal=True)
 
-    # اختيار نوع القيمة المعروضة
+    # ✅ اختيار عرض العدد أو النسبة
     show_percentage = st.checkbox("عرض النسبة المئوية بدل العدد", value=False)
 
+    # المرور على المتغيرات الديموغرافية
     for col in candidate_filter_cols:
         if col not in df_view.columns:
             continue
 
-        # حساب التوزيع البسيط دون ترتيب تنازلي
-        counts = df_view[col].value_counts(dropna=True, sort=False).reset_index()
+        # حساب التوزيع
+        counts = df_view[col].value_counts(dropna=False, sort=False).reset_index()
         counts.columns = [col, "Count"]
         counts["Percentage"] = counts["Count"] / counts["Count"].sum() * 100
 
-        # تحديد العمود المستخدم في المحور Y
+        # اختيار العمود المعروض
         y_col = "Percentage" if show_percentage else "Count"
         y_label = "النسبة المئوية (%)" if show_percentage else "عدد الردود"
 
+        # 🎨 إعداد الرسم
         if chart_type == "مخطط أعمدة":
             fig = px.bar(
                 counts,
                 x=col,
                 y=y_col,
-                text=y_col,
+                text_auto=True,
                 color_discrete_sequence=["#5DADE2"],  # لون موحد
                 title=f"توزيع الردود حسب {col}"
             )
-            # صيغة عرض القيم
-            fmt = "%{text:.1f}%" if show_percentage else "%{text}"
-            fig.update_traces(texttemplate=fmt, textposition="outside")
+            fig.update_traces(texttemplate="%{text:.1f}%" if show_percentage else "%{text}", textposition="outside")
             fig.update_layout(
                 xaxis_title=col,
                 yaxis_title=y_label,
-                showlegend=False
+                showlegend=False,
+                height=500
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        else:  # Pie chart
+        else:  # 🎯 مخطط دائري
             fig = px.pie(
                 counts,
                 names=col,
-                values="Percentage" if show_percentage else "Count",
+                values=y_col,
                 hole=0.3,
                 color_discrete_sequence=PASTEL,
                 title=f"التوزيع النسبي حسب {col}"
             )
-            fig.update_traces(
-                textposition="inside",
-                texttemplate="%{label}<br>%{percent:.1%}"
-            )
+            fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{percent:.1%}")
             st.plotly_chart(fig, use_container_width=True)
+
+        # ✅ جدول تلخيصي اختياري
+        st.dataframe(
+            counts[[col, "Count", "Percentage"]].rename(columns={"Count": "العدد", "Percentage": "النسبة %"}).style.format({"النسبة %": "{:.1f}%"}),
+            use_container_width=True,
+            hide_index=True
+        )
 
 # =========================================================
 # تبويب المؤشرات (CSAT / CES / NPS)
