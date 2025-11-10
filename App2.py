@@ -303,39 +303,53 @@ with tab_dimensions:
     if not dim_subcols:
         st.info("لا توجد أعمدة فرعية للأبعاد (مثل Dim1.1 أو Dim2.3).")
     else:
-        # نبني متوسط لكل بعد رئيسي (نفترض الآن ثلاثة أبعاد فعالة Dim1/Dim2/Dim3 — أو الموجود فقط)
+        # نبني متوسط لكل بعد رئيسي (نلتقط ما هو موجود حتى لو أقل من 5)
         main_dim_map = {}
-        for i in range(1, 6):  # نلتقط ما هو موجود حتى لو أقل من 5
+        for i in range(1, 6):
             sub = [c for c in df_view.columns if str(c).startswith(f"Dim{i}.")]
             if sub:
                 main_dim_map[f"Dim{i}"] = df_view[sub].apply(pd.to_numeric, errors="coerce").mean(axis=1)
 
-        # نكون ملخصًا
+        # نكوّن ملخصًا
         summary = []
         for dim, series in main_dim_map.items():
             score = series_to_percent(series)
             summary.append({"Dimension": dim, "Score": score})
+
         dims = pd.DataFrame(summary).dropna()
         if dims.empty:
             st.info("لا توجد نتائج كافية للأبعاد.")
         else:
+            # ترتيب حسب رقم البعد
             dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
-            dims = dims.sort_values("Order")
+            dims = dims.sort_values("Order").reset_index(drop=True)
 
-# 🔄 استبدال أسماء الأبعاد برموزها العربية من ورقة Question إذا وُجدت
-if "QUESTION" in lookup_catalog:
-    qtbl = lookup_catalog["QUESTION"].copy()
-    qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
-    
-    # نحاول تحديد عمود يحتوي أسماء الأكواد (مثل DIM أو CODE)
-    code_col = next((c for c in qtbl.columns if "DIM" in c or "CODE" in c), None)
-    name_col = next((c for c in qtbl.columns if "ARABIC" in c or "NAME" in c or "LABEL" in c), None)
-    
-    if code_col and name_col:
-        map_dict = dict(zip(qtbl[code_col].astype(str), qtbl[name_col].astype(str)))
-        dims["Dimension"] = dims["Dimension"].astype(str).map(map_dict).fillna(dims["Dimension"])
+            # 🔄 استبدال أسماء الأبعاد برموزها العربية من ورقة Question إذا وُجدت
+            if "QUESTION" in lookup_catalog:
+                qtbl = lookup_catalog["QUESTION"].copy()
+                qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
 
-            
+                # محاولة ذكية لاكتشاف عمود الكود وعمود الاسم
+                code_col = next((c for c in qtbl.columns if any(k in c for k in ["DIM", "CODE", "QUESTION", "ID"])), None)
+                name_col = next((c for c in qtbl.columns if any(k in c for k in ["ARABIC", "NAME", "LABEL"])), None)
+
+                if code_col and name_col:
+                    # توحيد الشكل: أحرف كبيرة + إزالة المسافات
+                    def _norm(s):
+                        return s.astype(str).str.upper().str.replace(r"\s+", "", regex=True)
+
+                    code_series = _norm(qtbl[code_col])
+                    name_series = qtbl[name_col].astype(str)
+                    map_dict = dict(zip(code_series, name_series))
+
+                    # مثال: 'Dim1' ← 'DIM1'
+                    dims["Dimension"] = (
+                        _norm(dims["Dimension"])
+                        .map(map_dict)
+                        .fillna(dims["Dimension"])
+                    )
+
+            # تصنيف دلالي
             def cat(score):
                 if score < 70:  return "🔴 ضعيف"
                 elif score < 80: return "🟡 متوسط"
@@ -343,6 +357,7 @@ if "QUESTION" in lookup_catalog:
                 else:            return "🔵 ممتاز"
             dims["Category"] = dims["Score"].apply(cat)
 
+            # الرسم
             fig = px.bar(
                 dims, x="Dimension", y="Score", text="Score", color="Category",
                 color_discrete_map={
@@ -357,9 +372,10 @@ if "QUESTION" in lookup_catalog:
             fig.update_layout(yaxis=dict(range=[0, 100]), xaxis_title="البعد", yaxis_title="النسبة المئوية (%)")
             st.plotly_chart(fig, use_container_width=True)
 
+            # الجدول
             st.dataframe(
-                dims[["Dimension", "Score"]].rename(columns={"Dimension":"البعد","Score":"النسبة (%)"})
-                .style.format({"النسبة (%)":"{:.1f}%"}),
+                dims[["Dimension", "Score"]].rename(columns={"Dimension": "البعد", "Score": "النسبة (%)"})
+                .style.format({"النسبة (%)": "{:.1f}%"}),
                 use_container_width=True, hide_index=True
             )
 
