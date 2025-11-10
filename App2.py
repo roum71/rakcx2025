@@ -264,7 +264,7 @@ with tab_sample:
             )
             fig.update_traces(
                 texttemplate="%{text:.1f}%" if show_percentage else "%{text}",
-                textposition="outside"
+                textposition="outside",
                 text=text_col,
                 color=col,
                 color_discrete_sequence=PASTEL,
