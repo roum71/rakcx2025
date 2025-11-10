@@ -48,6 +48,11 @@ st.markdown("""
 def load_data():
     # البيانات الرئيسية
     df = pd.read_csv("MUN.csv", encoding="utf-8", low_memory=False)
+    
+    # 🔧 توحيد أسماء الأعمدة (لضمان تطابق SERVICE و GENDER و CHANNEL وغيرها)
+    df.columns = [c.strip().upper() for c in df.columns]
+    
+    
     # الجداول الوصفية
     lookup_catalog = {}
     xls_path = Path("Digital_Data_tables2.xlsx")
