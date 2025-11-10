@@ -321,6 +321,21 @@ with tab_dimensions:
         else:
             dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
             dims = dims.sort_values("Order")
+
+# 🔄 استبدال أسماء الأبعاد برموزها العربية من ورقة Question إذا وُجدت
+if "QUESTION" in lookup_catalog:
+    qtbl = lookup_catalog["QUESTION"].copy()
+    qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
+    
+    # نحاول تحديد عمود يحتوي أسماء الأكواد (مثل DIM أو CODE)
+    code_col = next((c for c in qtbl.columns if "DIM" in c or "CODE" in c), None)
+    name_col = next((c for c in qtbl.columns if "ARABIC" in c or "NAME" in c or "LABEL" in c), None)
+    
+    if code_col and name_col:
+        map_dict = dict(zip(qtbl[code_col].astype(str), qtbl[name_col].astype(str)))
+        dims["Dimension"] = dims["Dimension"].astype(str).map(map_dict).fillna(dims["Dimension"])
+
+            
             def cat(score):
                 if score < 70:  return "🔴 ضعيف"
                 elif score < 80: return "🟡 متوسط"
