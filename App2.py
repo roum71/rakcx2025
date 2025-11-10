@@ -283,7 +283,6 @@ with tab_sample:
             fig = px.pie(
                 counts,
                 names=col,
-                values=y_col,
                 values="Count",
                 hole=0.3,
                 color=col,
