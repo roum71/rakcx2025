@@ -275,7 +275,6 @@ with tab_sample:
                 xaxis_title="الفئة",
                 yaxis_title=y_label,
                 showlegend=False,
-                height=450,
                 height=500
             )
             st.plotly_chart(fig, use_container_width=True)
