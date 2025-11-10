@@ -211,7 +211,6 @@ with tab_sample:
     # ✅ اختيار عرض العدد أو النسبة
     show_percentage = st.checkbox("عرض النسبة المئوية بدل العدد", value=False)
 
-    # المرور على المتغيرات الديموغرافية
     for col in candidate_filter_cols:
         if col not in df_view.columns:
             continue
@@ -235,12 +234,15 @@ with tab_sample:
                 color_discrete_sequence=["#5DADE2"],  # لون موحد
                 title=f"توزيع الردود حسب {col}"
             )
-            fig.update_traces(texttemplate="%{text:.1f}%" if show_percentage else "%{text}", textposition="outside")
+            fig.update_traces(
+                texttemplate="%{text:.1f}%" if show_percentage else "%{text}",
+                textposition="outside"
+            )
             fig.update_layout(
                 xaxis_title=col,
                 yaxis_title=y_label,
                 showlegend=False,
-                height=500
+                height=450
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -253,15 +255,21 @@ with tab_sample:
                 color_discrete_sequence=PASTEL,
                 title=f"التوزيع النسبي حسب {col}"
             )
-            fig.update_traces(textposition="inside", texttemplate="%{label}<br>%{percent:.1%}")
+            fig.update_traces(
+                textposition="inside",
+                texttemplate="%{label}<br>%{percent:.1%}"
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-        # ✅ جدول تلخيصي اختياري
+        # ✅ جدول تلخيصي أسفل الرسم
         st.dataframe(
-            counts[[col, "Count", "Percentage"]].rename(columns={"Count": "العدد", "Percentage": "النسبة %"}).style.format({"النسبة %": "{:.1f}%"}),
+            counts[[col, "Count", "Percentage"]]
+            .rename(columns={"Count": "العدد", "Percentage": "النسبة %"})
+            .style.format({"النسبة %": "{:.1f}%"}),
             use_container_width=True,
             hide_index=True
         )
+
 
 # =========================================================
 # تبويب المؤشرات (CSAT / CES / NPS)
@@ -521,6 +529,7 @@ with tab_services:
 # =========================================================
 # 💬 تحليل أسباب عدم الرضا (Most_Unsat) بطريقة Pareto
 # =========================================================
+with tab_pareto:
 st.subheader("💬 تحليل أسباب عدم الرضا في الخدمات الرقمية (Pareto)")
 
 unsat_col = next((c for c in df_view.columns if "MOST_UNSAT" in c.upper()), None)
