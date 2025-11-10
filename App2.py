@@ -40,7 +40,7 @@ st.markdown("""
         .stDownloadButton, .stButton > button {font-weight:600;}
     </style>
 """, unsafe_allow_html=True)
-    # =========================================================
+        # =========================================================
     # 💾 تحميل الأكواد ومعانيها من جداول الوصف (Lookup Tables)
     # =========================================================
     st.markdown("---")
@@ -48,39 +48,41 @@ st.markdown("""
 
     if lookup_catalog:
         lookup_combined = []
+
         for sheet_name, tbl in lookup_catalog.items():
-            if len(tbl.columns) >= 2:
-                tbl = tbl.copy()
-                tbl.columns = [str(c).strip() for c in tbl.columns]
-                col_en = tbl.columns[0]
-                col_ar = tbl.columns[1]
-                tbl["SOURCE_SHEET"] = sheet_name
-                tbl.rename(columns={col_en: "Code / English", col_ar: "Arabic Meaning"}, inplace=True)
-                lookup_combined.append(tbl[["SOURCE_SHEET", "Code / English", "Arabic Meaning"]])
+            if tbl is not None and len(tbl.columns) >= 2:
+                t = tbl.copy()
+                t.columns = [str(c).strip() for c in t.columns]
+                col_en, col_ar = t.columns[:2]          # أول عمودين = الكود/إنجليزي + العربي
+                t["SOURCE_SHEET"] = sheet_name
+                t.rename(columns={col_en: "Code / English", col_ar: "Arabic Meaning"}, inplace=True)
+                lookup_combined.append(t[["SOURCE_SHEET", "Code / English", "Arabic Meaning"]])
 
         if lookup_combined:
             lookup_all = pd.concat(lookup_combined, ignore_index=True)
-            st.dataframe(
-                lookup_all.head(20).style.set_properties(**{"text-align": "right"}),
-                use_container_width=True,
-                hide_index=True
-            )
 
-            # زر التنزيل
+            st.dataframe(lookup_all.head(20), use_container_width=True, hide_index=True)
+
+            # ملف Excel: ورقة مجمعة + كل ورقة أصلية باسمها (بحد 31 حرفاً)
             buf_lookup = io.BytesIO()
             with pd.ExcelWriter(buf_lookup, engine="openpyxl") as writer:
-                lookup_all.to_excel(writer, index=False, sheet_name="Lookup_Tables")
+                lookup_all.to_excel(writer, index=False, sheet_name="Combined")
+                for sheet_name, tbl in lookup_catalog.items():
+                    if tbl is not None and len(tbl.columns) >= 2:
+                        safe_name = str(sheet_name)[:31]
+                        tbl.to_excel(writer, index=False, sheet_name=safe_name)
 
             st.download_button(
                 "📥 تنزيل جميع الأكواد ومعانيها (Excel)",
                 data=buf_lookup.getvalue(),
                 file_name=f"Lookup_Tables_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
         else:
             st.info("لم يتم العثور على جداول تحتوي على عمودين على الأقل (كود + معنى).")
     else:
         st.warning("⚠️ لا توجد جداول وصفية (Lookup) متاحة حالياً.")
+
 
 
 # =========================================================
