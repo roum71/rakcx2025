@@ -55,20 +55,6 @@ tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.ta
     "💬 الملاحظات (Pareto)"
 ])
 
-# =========================================================
-# تبويب البيانات + تنزيل
-# =========================================================
-with tab_data:
-    st.subheader("📁 البيانات (بعد الفلترة)")
-    st.dataframe(df_view, use_container_width=True)
-    ts = datetime.now().strftime("%Y-%m-%d_%H%M")
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-        df_view.to_excel(writer, index=False, sheet_name="Filtered_Data")
-    st.download_button("📥 تنزيل البيانات (Excel)", data=buf.getvalue(),
-                       file_name=f"Filtered_Data_{ts}.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-   
 
 # =========================================================
 # تبويب توزيع العينة
