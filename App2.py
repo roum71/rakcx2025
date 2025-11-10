@@ -298,19 +298,20 @@ with tab_kpis:
 # =========================================================
 with tab_dimensions:
     st.subheader("🧩 تحليل الأبعاد")
-    # نبحث عن الأعمدة التي تبدأ بـ "DimX." لمستوى السؤال الفرعي
+    
+    # نبحث عن الأعمدة التي تبدأ بـ "DimX." (الأسئلة الفرعية داخل كل بعد)
     dim_subcols = [c for c in df_view.columns if re.match(r"Dim\d+\.", str(c).strip())]
     if not dim_subcols:
         st.info("لا توجد أعمدة فرعية للأبعاد (مثل Dim1.1 أو Dim2.3).")
     else:
-        # نبني متوسط لكل بعد رئيسي (نلتقط ما هو موجود حتى لو أقل من 5)
+        # بناء المتوسط لكل بعد رئيسي (Dim1, Dim2, Dim3...) — نلتقط ما هو متاح
         main_dim_map = {}
         for i in range(1, 6):
             sub = [c for c in df_view.columns if str(c).startswith(f"Dim{i}.")]
             if sub:
                 main_dim_map[f"Dim{i}"] = df_view[sub].apply(pd.to_numeric, errors="coerce").mean(axis=1)
 
-        # نكوّن ملخصًا
+        # إنشاء ملخص بنتائج الأبعاد
         summary = []
         for dim, series in main_dim_map.items():
             score = series_to_percent(series)
@@ -320,60 +321,37 @@ with tab_dimensions:
         if dims.empty:
             st.info("لا توجد نتائج كافية للأبعاد.")
         else:
-            # ترتيب حسب رقم البعد
+            # ترتيب الأبعاد حسب الرقم (Dim1, Dim2...)
             dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
             dims = dims.sort_values("Order").reset_index(drop=True)
 
-            # 🔄 استبدال أسماء الأبعاد برموزها العربية من ورقة Question إذا وُجدت
-            # 🔄 استبدال أسماء الأبعاد برموزها العربية من ورقة Questions إذا وُجدت
-for sheet_name in lookup_catalog.keys():
-    if "QUESTION" in sheet_name:  # يتعرف على Question أو Questions أو أي تشابه
-        qtbl = lookup_catalog[sheet_name].copy()
-        qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
+            # 🔄 استبدال أسماء الأبعاد من ورقة "Questions" في ملف Excel إذا وُجدت
+            for sheet_name in lookup_catalog.keys():
+                if "QUESTION" in sheet_name:  # يلتقط Question أو Questions
+                    qtbl = lookup_catalog[sheet_name].copy()
+                    qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
 
-        # نحاول تحديد العمود الذي يحوي الكود والعمود الذي يحوي الاسم العربي
-        code_col = next((c for c in qtbl.columns if any(k in c for k in ["DIM", "CODE", "QUESTION", "ID"])), None)
-        name_col = next((c for c in qtbl.columns if any(k in c for k in ["ARABIC", "NAME", "LABEL", "TEXT"])), None)
+                    # محاولة تحديد عمود الأكواد وعمود الاسم العربي
+                    code_col = next((c for c in qtbl.columns if any(k in c for k in ["DIM", "CODE", "QUESTION", "ID"])), None)
+                    name_col = next((c for c in qtbl.columns if any(k in c for k in ["ARABIC", "NAME", "LABEL", "TEXT"])), None)
 
-        if code_col and name_col:
-            def _norm(s):
-                return s.astype(str).str.upper().str.replace(r"\s+", "", regex=True)
+                    if code_col and name_col:
+                        def _norm(s):
+                            return s.astype(str).str.upper().str.replace(r"\s+", "", regex=True)
 
-            code_series = _norm(qtbl[code_col])
-            name_series = qtbl[name_col].astype(str)
-            map_dict = dict(zip(code_series, name_series))
+                        code_series = _norm(qtbl[code_col])
+                        name_series = qtbl[name_col].astype(str)
+                        map_dict = dict(zip(code_series, name_series))
 
-            dims["Dimension"] = (
-                _norm(dims["Dimension"])
-                .map(map_dict)
-                .fillna(dims["Dimension"])
-            )
-        break  # نوقف البحث بعد أول ورقة تطابق
+                        # استبدال الأكواد بالأسماء العربية
+                        dims["Dimension"] = (
+                            _norm(dims["Dimension"])
+                            .map(map_dict)
+                            .fillna(dims["Dimension"])
+                        )
+                    break  # توقف بعد العثور على الورقة المطابقة
 
-                qtbl = lookup_catalog["QUESTION"].copy()
-                qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
-
-                # محاولة ذكية لاكتشاف عمود الكود وعمود الاسم
-                code_col = next((c for c in qtbl.columns if any(k in c for k in ["DIM", "CODE", "QUESTION", "ID"])), None)
-                name_col = next((c for c in qtbl.columns if any(k in c for k in ["ARABIC", "NAME", "LABEL"])), None)
-
-                if code_col and name_col:
-                    # توحيد الشكل: أحرف كبيرة + إزالة المسافات
-                    def _norm(s):
-                        return s.astype(str).str.upper().str.replace(r"\s+", "", regex=True)
-
-                    code_series = _norm(qtbl[code_col])
-                    name_series = qtbl[name_col].astype(str)
-                    map_dict = dict(zip(code_series, name_series))
-
-                    # مثال: 'Dim1' ← 'DIM1'
-                    dims["Dimension"] = (
-                        _norm(dims["Dimension"])
-                        .map(map_dict)
-                        .fillna(dims["Dimension"])
-                    )
-
-            # تصنيف دلالي
+            # تصنيف الأبعاد حسب التقييم
             def cat(score):
                 if score < 70:  return "🔴 ضعيف"
                 elif score < 80: return "🟡 متوسط"
@@ -381,7 +359,7 @@ for sheet_name in lookup_catalog.keys():
                 else:            return "🔵 ممتاز"
             dims["Category"] = dims["Score"].apply(cat)
 
-            # الرسم
+            # رسم بياني للأبعاد
             fig = px.bar(
                 dims, x="Dimension", y="Score", text="Score", color="Category",
                 color_discrete_map={
@@ -393,14 +371,20 @@ for sheet_name in lookup_catalog.keys():
                 title="تحليل متوسط الأبعاد"
             )
             fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-            fig.update_layout(yaxis=dict(range=[0, 100]), xaxis_title="البعد", yaxis_title="النسبة المئوية (%)")
+            fig.update_layout(
+                yaxis=dict(range=[0, 100]),
+                xaxis_title="البعد",
+                yaxis_title="النسبة المئوية (%)"
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-            # الجدول
+            # عرض جدول الأبعاد
             st.dataframe(
-                dims[["Dimension", "Score"]].rename(columns={"Dimension": "البعد", "Score": "النسبة (%)"})
+                dims[["Dimension", "Score"]]
+                .rename(columns={"Dimension": "البعد", "Score": "النسبة (%)"})
                 .style.format({"النسبة (%)": "{:.1f}%"}),
-                use_container_width=True, hide_index=True
+                use_container_width=True,
+                hide_index=True
             )
 
 # =========================================================
