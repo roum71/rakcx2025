@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # Arabic CX Dashboard (3 Dimensions) — Streamlit
-# Files expected in the same folder:
+# Files required in the same folder:
 #   - MUN.csv
 #   - Digital_Data_tables2.xlsx
 #
-# Run:
+# Run using:
 #   streamlit run Arabic_Dashboard.py
 
 import streamlit as st
@@ -17,21 +17,19 @@ from datetime import datetime
 from pathlib import Path
 
 # =========================================================
-# إعداد الصفحة + اتجاه RTL
+# إعداد الصفحة + الاتجاه العربي
 # =========================================================
 st.set_page_config(page_title="لوحة تجربة المتعاملين — نسخة عربية", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
-# شعار أعلى الصفحة
 LOGO_URL = "https://raw.githubusercontent.com/roum71/rakcx2025/main/assets/mini_header2.png"
 st.markdown(f"""
     <div style="text-align:center; margin-top:-40px;">
-        <img src="{LOGO_URL}" alt="Logo" style="width:950px; max-width:95%; height:auto;">
+        <img src="{LOGO_URL}" style="width:950px; max-width:95%; height:auto;">
     </div>
     <hr style="margin-top:20px; margin-bottom:10px;">
 """, unsafe_allow_html=True)
 
-# اتجاه عربي وخط جميل
 st.markdown("""
     <style>
         html, body, [class*="css"] {direction:rtl; text-align:right; font-family:"Tajawal","Cairo","Segoe UI";}
@@ -46,9 +44,7 @@ st.markdown("""
 @st.cache_data(show_spinner=False)
 def load_data():
     df = pd.read_csv("MUN.csv", encoding="utf-8", low_memory=False)
-    df.columns = [c.strip().upper() for c in df.columns]
-    df.columns = [c.replace('DIM', 'Dim') for c in df.columns]
-
+    df.columns = [c.strip() for c in df.columns]  # ⚙️ نحافظ على حالة الحروف الأصلية
     lookup_catalog = {}
     xls_path = Path("Digital_Data_tables2.xlsx")
     if xls_path.exists():
@@ -61,38 +57,28 @@ def load_data():
 
 def series_to_percent(vals: pd.Series):
     vals = pd.to_numeric(vals, errors="coerce").dropna()
-    if len(vals) == 0:
-        return np.nan
+    if len(vals) == 0: return np.nan
     mx = vals.max()
-    if mx <= 5:
-        return ((vals - 1) / 4 * 100).mean()
-    elif mx <= 10:
-        return ((vals - 1) / 9 * 100).mean()
-    else:
-        return vals.mean()
-
-def detect_nps(df: pd.DataFrame):
-    cand_cols = [c for c in df.columns if ("NPS" in c.upper()) or ("RECOMMEND" in c.upper())]
-    if not cand_cols:
-        return np.nan, 0, 0, 0, None
-    col = cand_cols[0]
-    s = pd.to_numeric(df[col], errors="coerce").dropna()
-    if len(s) == 0:
-        return np.nan, 0, 0, 0, col
-    promoters = (s >= 9).sum()
-    passives = ((s >= 7) & (s <= 8)).sum()
-    detract = (s <= 6).sum()
-    total = len(s)
-    promoters_pct = promoters / total * 100
-    detract_pct = detract / total * 100
-    nps = promoters_pct - detract_pct
-    return nps, promoters_pct, passives, detract, col
+    if mx <= 5: return ((vals - 1) / 4 * 100).mean()
+    elif mx <= 10: return ((vals - 1) / 9 * 100).mean()
+    else: return vals.mean()
 
 def autodetect_metric_cols(df: pd.DataFrame):
     csat = next((c for c in df.columns if "CSAT" in c.upper()), None)
     ces = next((c for c in df.columns if "FEES" in c.upper()), None)
     nps = next((c for c in df.columns if "NPS" in c.upper()), None)
     return csat, ces, nps
+
+def detect_nps(df: pd.DataFrame):
+    nps_col = next((c for c in df.columns if "NPS" in c.upper()), None)
+    if not nps_col: return np.nan, 0, 0, 0, None
+    s = pd.to_numeric(df[nps_col], errors="coerce").dropna()
+    if len(s) == 0: return np.nan, 0, 0, 0, nps_col
+    promoters = (s >= 9).sum()
+    detractors = (s <= 6).sum()
+    total = len(s)
+    nps = (promoters - detractors) / total * 100
+    return nps, promoters / total * 100, 0, detractors / total * 100, nps_col
 
 df, lookup_catalog = load_data()
 
@@ -111,18 +97,18 @@ def apply_lookup(column_name: str, s: pd.Series) -> pd.Series:
     tbl = lookup_catalog[match_key].copy()
     tbl.columns = [str(c).strip().upper() for c in tbl.columns]
     if len(tbl.columns) < 2: return s
-    map_dict = dict(zip(tbl.iloc[:,0].astype(str), tbl.iloc[:,1].astype(str)))
+    map_dict = dict(zip(tbl.iloc[:, 0].astype(str), tbl.iloc[:, 1].astype(str)))
     return s.astype(str).map(map_dict).fillna(s)
 
-df_filtered_display = df_filtered.copy()
+df_display = df_filtered.copy()
 for col in candidate_filter_cols:
-    df_filtered_display[col] = apply_lookup(col, df_filtered[col])
+    df_display[col] = apply_lookup(col, df_filtered[col])
 
 with st.sidebar.expander("تطبيق/إزالة الفلاتر"):
     applied_filters = {}
     for col in candidate_filter_cols:
         df_filtered[col] = apply_lookup(col, df_filtered[col])
-        options = sorted(df_filtered_display[col].dropna().unique().tolist())
+        options = sorted(df_display[col].dropna().unique().tolist())
         sel = st.multiselect(f"{col}", options, default=options)
         applied_filters[col] = sel
 for col, selected in applied_filters.items():
@@ -132,14 +118,13 @@ df_view = df_filtered.copy()
 # =========================================================
 # التبويبات
 # =========================================================
-tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_unsat, tab_pareto = st.tabs([
+tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_unsat = st.tabs([
     "📁 البيانات",
     "📈 توزيع العينة",
     "📊 المؤشرات",
     "🧩 الأبعاد",
     "📋 الخدمات",
-    "💬 عدم الرضا (Pareto)",
-    "💬 الملاحظات العامة (Pareto)"
+    "💬 تحليل المزعجات (Pareto)"
 ])
 
 # =========================================================
@@ -152,7 +137,7 @@ with tab_data:
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df_view.to_excel(writer, index=False)
-    st.download_button("📥 تنزيل البيانات (Excel)", data=buf.getvalue(),
+    st.download_button("📥 تنزيل البيانات", data=buf.getvalue(),
                        file_name=f"Filtered_Data_{ts}.xlsx")
 
 # =========================================================
@@ -164,9 +149,10 @@ with tab_sample:
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
     chart_type = st.radio("📊 نوع الرسم", ["مخطط أعمدة", "مخطط دائري"], index=0, horizontal=True)
     for col in candidate_filter_cols:
+        if col not in df_view: continue
         counts = df_view[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
-        counts["Percentage"] = counts["Count"]/counts["Count"].sum()*100
+        counts["Percentage"] = counts["Count"] / counts["Count"].sum() * 100
         if chart_type == "مخطط أعمدة":
             fig = px.bar(counts, x=col, y="Count", text="Count", color=col,
                          color_discrete_sequence=PASTEL)
@@ -175,71 +161,122 @@ with tab_sample:
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 💬 تبويب تحليل أسباب عدم الرضا (Pareto)
+# تبويب المؤشرات
+# =========================================================
+with tab_kpis:
+    st.subheader("📊 مؤشرات الأداء الرئيسية")
+    csat_col, ces_col, nps_col = autodetect_metric_cols(df_view)
+    csat = series_to_percent(df_view.get(csat_col, pd.Series(dtype=float))) if csat_col else np.nan
+    ces = series_to_percent(df_view.get(ces_col, pd.Series(dtype=float))) if ces_col else np.nan
+    nps, p_pct, s_pct, d_pct, nps_col = detect_nps(df_view)
+
+    def gauge(value, title):
+        color = "#bdc3c7" if pd.isna(value) else (
+            "#FF6B6B" if value < 70 else "#FFD93D" if value < 80 else "#6BCB77" if value < 90 else "#4D96FF"
+        )
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=0 if pd.isna(value) else float(value),
+            number={'suffix': "%"},
+            title={'text': title},
+            gauge={'axis': {'range': [0, 100]}, 'bar': {'color': color}}
+        ))
+        fig.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
+        return fig
+
+    c1, c2, c3 = st.columns(3)
+    c1.plotly_chart(gauge(csat, "رضا المتعامل (CSAT)"), use_container_width=True)
+    c2.plotly_chart(gauge(ces, "سهولة/قيمة الخدمة (FEES)"), use_container_width=True)
+    c3.plotly_chart(gauge(nps, "صافي المروجين (NPS)"), use_container_width=True)
+
+# =========================================================
+# تبويب الأبعاد
+# =========================================================
+with tab_dimensions:
+    st.subheader("🧩 تحليل الأبعاد")
+    dim_cols = [c for c in df_view.columns if re.match(r"Dim\d+\.", str(c))]
+    if not dim_cols:
+        st.info("⚠️ لا توجد أعمدة للأبعاد مثل Dim1.1 أو Dim2.3.")
+    else:
+        summary = []
+        for i in range(1, 6):
+            sub = [c for c in dim_cols if c.startswith(f"Dim{i}.")]
+            if sub:
+                score = series_to_percent(df_view[sub].mean(axis=1))
+                summary.append({"البعد": f"Dim{i}", "النسبة (%)": score})
+        dims = pd.DataFrame(summary)
+        st.dataframe(dims.style.format({"النسبة (%)": "{:.1f}%"}), use_container_width=True)
+        fig = px.bar(dims, x="البعد", y="النسبة (%)", text="النسبة (%)", color="البعد",
+                     color_discrete_sequence=PASTEL)
+        fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+        st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# 💬 تبويب تحليل المزعجات (Pareto)
 # =========================================================
 with tab_unsat:
-    st.subheader("💬 تحليل أسباب عدم الرضا في الخدمات الرقمية (Pareto)")
+    st.subheader("💬 تحليل المزعجات في الخدمات الرقمية (Pareto)")
 
-    unsat_col = next((c for c in df_view.columns if "MOST_UNSAT" in c.upper()), None)
-    if not unsat_col:
-        st.warning("⚠️ لم يتم العثور على العمود Most_Unsat.")
+    text_cols = [c for c in df_view.columns if any(k in c.upper() for k in ["MOST_UNSAT", "UNSAT", "COMMENT", "ملاح"])]
+    if not text_cols:
+        st.warning("⚠️ لم يتم العثور على عمود نصي للملاحظات.")
     else:
-        data_unsat = df_view[[unsat_col]].copy()
-        data_unsat.columns = ["Comment"]
-        data_unsat["Comment"] = data_unsat["Comment"].astype(str).str.strip()
+        col = text_cols[0]
+        data = df_view[[col]].copy()
+        data.columns = ["Comment"]
+        data["Comment"] = data["Comment"].astype(str).str.strip()
 
-        exclude_terms = ["", " ", "لا يوجد", "لايوجد", "لاشيء", "لا شيء",
-                         "none", "no", "nothing", "nil", "جيد", "ممتاز", "ok", "تمام", "great"]
-        data_unsat = data_unsat[~data_unsat["Comment"].str.lower().isin([t.lower() for t in exclude_terms])]
-        data_unsat = data_unsat[data_unsat["Comment"].apply(lambda x: len(x.split()) >= 2)]
+        exclude = ["", " ", "لا يوجد", "لايوجد", "none", "no", "nothing", "nil", "ok", "جيد", "ممتاز", "تمام"]
+        data = data[~data["Comment"].str.lower().isin([t.lower() for t in exclude])]
+        data = data[data["Comment"].apply(lambda x: len(x.split()) >= 2)]
 
-        if data_unsat.empty:
-            st.info("لا توجد ملاحظات نصية كافية بعد التنظيف.")
+        if data.empty:
+            st.info("لا توجد ملاحظات نصية كافية.")
         else:
             themes = {
-                "السرعة / الأداء": ["بطء", "تأخير", "انتظار", "delay", "slow", "زمن", "وقت"],
-                "التطبيق / المنصة": ["تطبيق", "app", "منصة", "system", "موقع", "بوابة", "صفحة"],
-                "الإجراءات / الخطوات": ["إجراء", "اجراء", "عملية", "process", "خطوات", "مراحل"],
-                "الرسوم / الدفع": ["رسوم", "دفع", "fee", "تكلفة", "سداد", "pay"],
-                "التواصل / الدعم الفني": ["رد", "تواصل", "اتصال", "support", "response", "مساعدة"],
-                "الوضوح / المعلومات": ["معلومة", "إيضاح", "clarity", "instructions", "بيانات", "شرح"],
-                "الأمان / الدخول": ["كلمة مرور", "دخول", "login", "تحقق", "أمان"]
+                "السرعة / الأداء": ["بطء", "تأخير", "انتظار", "delay", "slow", "وقت"],
+                "التطبيق / المنصة": ["تطبيق", "app", "منصة", "system", "موقع", "بوابة"],
+                "الإجراءات / الخطوات": ["إجراء", "اجراء", "process", "خطوة", "نموذج"],
+                "الرسوم / الدفع": ["رسوم", "دفع", "fee", "pay", "سداد"],
+                "التواصل / الدعم الفني": ["رد", "تواصل", "support", "response", "مساعدة"],
+                "الوضوح / المعلومات": ["معلومة", "إيضاح", "clarity", "شرح"],
+                "الأمان / الدخول": ["دخول", "login", "تحقق", "كلمة مرور"]
             }
 
-            def classify_text(txt):
+            def classify(txt):
                 t = txt.lower()
-                for theme, keys in themes.items():
-                    if any(k in t for k in keys):
+                for theme, words in themes.items():
+                    if any(w in t for w in words):
                         return theme
-                return "غير مصنّف"
+                return "أخرى"
 
-            data_unsat["المحور"] = data_unsat["Comment"].apply(classify_text)
-            data_unsat = data_unsat[data_unsat["المحور"] != "غير مصنّف"]
-
-            summary = data_unsat.groupby("المحور").agg({
+            data["المحور"] = data["Comment"].apply(classify)
+            summary = data.groupby("المحور").agg({
                 "Comment": lambda x: " / ".join(x.tolist())
             }).reset_index()
             summary["عدد الملاحظات"] = summary["Comment"].apply(lambda x: len(x.split("/")))
-            summary = summary.sort_values("عدد الملاحظات", ascending=False).reset_index(drop=True)
-            summary["النسبة (%)"] = summary["عدد الملاحظات"]/summary["عدد الملاحظات"].sum()*100
+            summary = summary.sort_values("عدد الملاحظات", ascending=False)
+            summary["النسبة (%)"] = summary["عدد الملاحظات"] / summary["عدد الملاحظات"].sum() * 100
             summary["النسبة التراكمية (%)"] = summary["النسبة (%)"].cumsum()
             summary["اللون"] = np.where(summary["النسبة التراكمية (%)"] <= 80, "#E74C3C", "#BDC3C7")
             if not summary[summary["النسبة التراكمية (%)"] > 80].empty:
                 first_above = summary[summary["النسبة التراكمية (%)"] > 80].index[0]
                 summary.loc[first_above, "اللون"] = "#E74C3C"
 
-            st.dataframe(summary[["المحور","عدد الملاحظات","النسبة (%)","النسبة التراكمية (%)","Comment"]]
-                         .rename(columns={"Comment":"التعليقات (مجمعة)"}).style.format({"النسبة (%)":"{:.1f}%", "النسبة التراكمية (%)":"{:.1f}%"}),
+            st.dataframe(summary[["المحور", "عدد الملاحظات", "النسبة (%)", "النسبة التراكمية (%)", "Comment"]]
+                         .rename(columns={"Comment": "التعليقات (مجمعة)"})
+                         .style.format({"النسبة (%)": "{:.1f}%", "النسبة التراكمية (%)": "{:.1f}%"}),
                          use_container_width=True, hide_index=True)
 
             fig = go.Figure()
-            fig.add_bar(x=summary["المحور"], y=summary["عدد الملاحظات"], marker_color=summary["اللون"], name="عدد الملاحظات")
+            fig.add_bar(x=summary["المحور"], y=summary["عدد الملاحظات"],
+                        marker_color=summary["اللون"], name="عدد الملاحظات")
             fig.add_scatter(x=summary["المحور"], y=summary["النسبة التراكمية (%)"], yaxis="y2",
-                            name="النسبة التراكمية (%)", mode="lines+markers+text",
+                            mode="lines+markers+text", name="النسبة التراكمية (%)",
                             text=[f"{v:.1f}%" for v in summary["النسبة التراكمية (%)"]],
                             textposition="top center", line=dict(color="#2E86DE", width=3))
             fig.update_layout(
-                title="📊 تحليل Pareto لأسباب عدم الرضا في الخدمات الرقمية",
+                title="📊 تحليل Pareto لأهم المزعجات في الخدمات الرقمية",
                 xaxis=dict(title="المحور", tickangle=-15),
                 yaxis=dict(title="عدد الملاحظات"),
                 yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right", range=[0,110]),
@@ -248,11 +285,11 @@ with tab_unsat:
             st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# تحسينات شكلية
+# إخفاء التذييل
 # =========================================================
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    footer, [data-testid="stFooter"] {opacity: 0.03 !important; height: 1px !important; overflow: hidden !important;}
+    #MainMenu {visibility:hidden;}
+    footer, [data-testid="stFooter"] {display:none;}
     </style>
 """, unsafe_allow_html=True)
