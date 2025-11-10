@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 # Arabic CX Dashboard (3 Dimensions) — Streamlit
 # Files expected in the same folder:
@@ -196,22 +197,16 @@ with tab_data:
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # =========================================================
-# تبويب توزيع العينة (عرض بسيط بدون أي تحليل Pareto)
 # تبويب توزيع العينة
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
-
     total = len(df_view)
-    st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
     st.markdown(f"### 🧮 إجمالي الردود: <span style='color:#1E88E5;'>{total:,}</span>", unsafe_allow_html=True)
 
-    # ✅ اختيار نوع الرسم
     # نوع الرسم
     chart_type = st.radio("📊 نوع الرسم", ["مخطط أعمدة", "مخطط دائري"], index=0, horizontal=True)
 
-    # ✅ اختيار عرض العدد أو النسبة
-    show_percentage = st.checkbox("عرض النسبة المئوية بدل العدد", value=False)
     # خيار عرض العدد أو النسبة أو كليهما
     display_mode = st.radio(
         "📋 طريقة العرض:",
@@ -225,8 +220,6 @@ with tab_sample:
         if col not in df_view.columns:
             continue
 
-        # حساب التوزيع
-        counts = df_view[col].value_counts(dropna=False, sort=False).reset_index()
         counts = df_view[col].value_counts(dropna=True).reset_index()
         counts.columns = [col, "Count"]
         if counts.empty:
@@ -234,9 +227,6 @@ with tab_sample:
 
         counts["Percentage"] = counts["Count"] / counts["Count"].sum() * 100
 
-        # اختيار العمود المعروض
-        y_col = "Percentage" if show_percentage else "Count"
-        y_label = "النسبة المئوية (%)" if show_percentage else "عدد الردود"
         # تحديد العمود المستخدم حسب اختيار المستخدم
         if display_mode == "العدد فقط":
             y_col = "Count"
@@ -251,20 +241,12 @@ with tab_sample:
             y_label = "عدد الردود"
             text_col = counts.apply(lambda x: f"{x['Count']} ({x['Percentage']:.1f}%)", axis=1)
 
-        # 🎨 إعداد الرسم
         # === رسم المخطط ===
         if chart_type == "مخطط أعمدة":
             fig = px.bar(
                 counts,
                 x=col,
                 y=y_col,
-                text_auto=True,
-                color_discrete_sequence=["#5DADE2"],  # لون موحد
-                title=f"توزيع الردود حسب {col}"
-            )
-            fig.update_traces(
-                texttemplate="%{text:.1f}%" if show_percentage else "%{text}",
-                textposition="outside",
                 text=text_col,
                 color=col,
                 color_discrete_sequence=PASTEL,
@@ -279,7 +261,7 @@ with tab_sample:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        else:  
+        else:  # === مخطط دائري ===
             fig = px.pie(
                 counts,
                 names=col,
@@ -287,11 +269,6 @@ with tab_sample:
                 hole=0.3,
                 color=col,
                 color_discrete_sequence=PASTEL,
-                title=f"التوزيع النسبي حسب {col}"
-            )
-            fig.update_traces(
-                textposition="inside",
-                texttemplate="%{label}<br>%{percent:.1%}",
                 title=f"التوزيع حسب {col}"
             )
 
@@ -305,12 +282,8 @@ with tab_sample:
 
             st.plotly_chart(fig, use_container_width=True)
 
-        # ✅ جدول تلخيصي أسفل الرسم
         # جدول ملخص تحت المخطط
         st.dataframe(
-            counts[[col, "Count", "Percentage"]]
-            .rename(columns={"Count": "العدد", "Percentage": "النسبة %"})
-            .style.format({"النسبة %": "{:.1f}%"}),
             counts[[col, "Count", "Percentage"]].rename(columns={
                 col: "الفئة",
                 "Count": "عدد الردود",
@@ -319,7 +292,6 @@ with tab_sample:
             use_container_width=True,
             hide_index=True
         )
-
 
 # =========================================================
 # تبويب المؤشرات (CSAT / CES / NPS)
