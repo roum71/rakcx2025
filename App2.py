@@ -272,7 +272,6 @@ with tab_sample:
             )
             fig.update_traces(textposition="outside")
             fig.update_layout(
-                xaxis_title=col,
                 xaxis_title="الفئة",
                 yaxis_title=y_label,
                 showlegend=False,
