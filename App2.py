@@ -325,7 +325,31 @@ with tab_dimensions:
             dims = dims.sort_values("Order").reset_index(drop=True)
 
             # 🔄 استبدال أسماء الأبعاد برموزها العربية من ورقة Question إذا وُجدت
-            if "QUESTION" in lookup_catalog:
+            # 🔄 استبدال أسماء الأبعاد برموزها العربية من ورقة Questions إذا وُجدت
+for sheet_name in lookup_catalog.keys():
+    if "QUESTION" in sheet_name:  # يتعرف على Question أو Questions أو أي تشابه
+        qtbl = lookup_catalog[sheet_name].copy()
+        qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
+
+        # نحاول تحديد العمود الذي يحوي الكود والعمود الذي يحوي الاسم العربي
+        code_col = next((c for c in qtbl.columns if any(k in c for k in ["DIM", "CODE", "QUESTION", "ID"])), None)
+        name_col = next((c for c in qtbl.columns if any(k in c for k in ["ARABIC", "NAME", "LABEL", "TEXT"])), None)
+
+        if code_col and name_col:
+            def _norm(s):
+                return s.astype(str).str.upper().str.replace(r"\s+", "", regex=True)
+
+            code_series = _norm(qtbl[code_col])
+            name_series = qtbl[name_col].astype(str)
+            map_dict = dict(zip(code_series, name_series))
+
+            dims["Dimension"] = (
+                _norm(dims["Dimension"])
+                .map(map_dict)
+                .fillna(dims["Dimension"])
+            )
+        break  # نوقف البحث بعد أول ورقة تطابق
+
                 qtbl = lookup_catalog["QUESTION"].copy()
                 qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
 
