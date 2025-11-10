@@ -282,7 +282,7 @@ with tab_sample:
             st.plotly_chart(fig, use_container_width=True)
 
         else:  # 🎯 مخطط دائري
-        else:  # === مخطط دائري ===
+        else:  
             fig = px.pie(
                 counts,
                 names=col,
