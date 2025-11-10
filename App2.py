@@ -117,7 +117,7 @@ df_filtered = df.copy()
 # سنعرض فلاتر لأكثر الحقول شيوعًا؛ ويمكن التوسع تلقائيًا إذا وُجدت جداول مطابقة في الـ lookup
 candidate_filter_cols = []
 # أبعاد ديموغرافية أو وصفية شائعة
-common_keys = ["GENDER", "SERVICE", , , "AGE", "PERIOD",  "CHANNEL"]
+common_keys = ["Language", "SERVICE", "AGE", "PERIOD", "CHANNEL"]
 candidate_filter_cols = [c for c in df.columns if any(k in c.upper() for k in common_keys)]
 
 # وظيفة لتطبيق جدول lookup إذا توفّر باسم العمود
@@ -216,7 +216,7 @@ with tab_sample:
 # =========================================================
 with tab_kpis:
     st.subheader("📊 مؤشرات الأداء الرئيسية")
-    csat_col, ces_col, nps_col_hint = autodetect_metric_cols(df_view)
+    csat_col, ces_col, nps_col = autodetect_metric_cols(df_view)
 
     # حساب CSAT
     csat = series_to_percent(df_view.get(csat_col, pd.Series(dtype=float))) if csat_col else np.nan
