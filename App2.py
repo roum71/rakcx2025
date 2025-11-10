@@ -50,7 +50,7 @@ def load_data():
     df = pd.read_csv("MUN.csv", encoding="utf-8", low_memory=False)
     # الجداول الوصفية
     lookup_catalog = {}
-    xls_path = Path("Digital_Data_tables.xlsx")
+    xls_path = Path("Digital_Data_tables2.xlsx")
     if xls_path.exists():
         xls = pd.ExcelFile(xls_path)
         for sheet in xls.sheet_names:
