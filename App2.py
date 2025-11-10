@@ -68,8 +68,7 @@ with tab_data:
     st.download_button("📥 تنزيل البيانات (Excel)", data=buf.getvalue(),
                        file_name=f"Filtered_Data_{ts}.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-                            # =========================================================
+    # =========================================================
     # 💾 تحميل الأكواد ومعانيها من جداول الوصف (Lookup Tables)
     # =========================================================
     st.markdown("---")
