@@ -484,27 +484,26 @@ with tab_services:
                 st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# تبويب الملاحظات النوعية (Pareto)
+# 💬 تحليل أسباب عدم الرضا (Most_Unsat) — خدمات رقمية فقط
 # =========================================================
-with tab_pareto:
-    st.subheader("💬 تحليل الملاحظات (Pareto)")
-    # نحاول العثور على عمود نصي مناسب
-    text_cols = [c for c in df_view.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason", "feedback"])]
-    if not text_cols:
-        st.info("⚠️ لا يوجد عمود نصي مناسب لتحليل Pareto.")
-    else:
-        col = text_cols[0]
-        work = df_view[[col]].copy().rename(columns={col: "text"})
-        work["text"] = work["text"].astype(str).str.lower()
-        work["text"] = work["text"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
-        work["text"] = work["text"].replace(r"\s+", " ", regex=True).str.strip()
+st.subheader("💬 تحليل أسباب عدم الرضا في الخدمات الرقمية")
 
-        empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
-        work = work[~work["text"].isin(empty_terms)]
-        work = work[work["text"].apply(lambda x: len(x.split()) >= 3)]
+# التحقق من وجود العمود
+unsat_col = next((c for c in df_view.columns if "MOST_UNSAT" in c.upper()), None)
+if not unsat_col:
+    st.warning("⚠️ لم يتم العثور على العمود Most_Unsat في البيانات.")
+else:
+    data_unsat = df_view[[unsat_col]].copy()
+    data_unsat.columns = ["Comment"]
+    data_unsat["Comment"] = data_unsat["Comment"].astype(str).str.strip()
 
-        
-          if data_unsat.empty:
+    # استثناء الإجابات العامة أو الفارغة
+    exclude_terms = ["", " ", "لا يوجد", "لايوجد", "لاشيء", "لا شيء",
+                     "none", "no", "nothing", "nil", "جيد", "ممتاز", "ok", "تمام", "great"]
+    data_unsat = data_unsat[~data_unsat["Comment"].str.lower().isin([t.lower() for t in exclude_terms])]
+    data_unsat = data_unsat[data_unsat["Comment"].apply(lambda x: len(x.split()) >= 2)]
+
+    if data_unsat.empty:
         st.info("لا توجد ملاحظات نصية كافية بعد استبعاد الإجابات العامة.")
     else:
         # 🔹 تعريف المحاور الخاصة بالخدمات الرقمية
@@ -529,50 +528,23 @@ with tab_pareto:
 
         data_unsat["المحور"] = data_unsat["Comment"].apply(classify_text)
 
-            work["Theme"] = work["text"].apply(classify)
-            work = work[work["Theme"] != "أخرى"]
-            counts = work["Theme"].value_counts().reset_index()
-            counts.columns = ["Theme", "Count"]
-            if counts.empty:
-                st.info("لا توجد محاور قابلة للتحليل.")
-            else:
-                counts["%"] = counts["Count"] / counts["Count"].sum() * 100
-                counts["Cum%"] = counts["%"].cumsum()
-                counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
-                if not counts[counts["Cum%"] > 80].empty:
-                    first_above_80 = counts[counts["Cum%"] > 80].index[0]
-                    counts.loc[first_above_80, "Color"] = "#e74c3c"
+        # 🔢 حساب التكرارات والنسب
+        summary = data_unsat["المحور"].value_counts().reset_index()
+        summary.columns = ["المحور", "عدد الملاحظات"]
+        summary["النسبة (%)"] = summary["عدد الملاحظات"] / summary["عدد الملاحظات"].sum() * 100
 
-                # جدول
-                tbl = counts[["Theme","Count","%","Cum%"]].rename(columns={
-                    "Theme":"المحور",
-                    "Count":"عدد الملاحظات",
-                    "%":"النسبة %",
-                    "Cum%":"النسبة التراكمية %"
-                })
-                st.dataframe(tbl.style.format({"النسبة %":"{:.1f}", "النسبة التراكمية %":"{:.1f}"}),
-                            use_container_width=True, hide_index=True)
+        # 🧾 عرض النتائج
+        st.dataframe(summary.style.format({"النسبة (%)": "{:.1f}%"}),
+                     use_container_width=True, hide_index=True)
 
-                # رسم Pareto
-                fig = go.Figure()
-                fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"], name="عدد الملاحظات")
-                fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], yaxis="y2",
-                                name="النسبة التراكمية", mode="lines+markers")
-                fig.update_layout(
-                    title="تحليل باريتو — المحاور الرئيسية",
-                    yaxis=dict(title="عدد الملاحظات"),
-                    yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
-                    height=550, bargap=0.25, legend=dict(orientation="h", y=-0.2)
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-                # تنزيل النتائج
-                pbuf = io.BytesIO()
-                with pd.ExcelWriter(pbuf, engine="openpyxl") as writer:
-                    tbl.to_excel(writer, index=False, sheet_name="Pareto")
-                st.download_button("📥 تنزيل نتائج Pareto (Excel)", data=pbuf.getvalue(),
-                                   file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        # 📊 رسم بياني بالأعمدة
+        fig = px.bar(summary, x="المحور", y="عدد الملاحظات",
+                     text="النسبة (%)", color="المحور",
+                     color_discrete_sequence=PASTEL,
+                     title="تحليل أسباب عدم الرضا في الخدمات الرقمية")
+        fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+        fig.update_layout(yaxis_title="عدد الملاحظات", xaxis_title="المحور")
+        st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
 # تحسينات شكلية
