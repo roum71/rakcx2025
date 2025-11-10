@@ -40,7 +40,6 @@ st.markdown("""
         .stDownloadButton, .stButton > button {font-weight:600;}
     </style>
 """, unsafe_allow_html=True)
-
     # =========================================================
     # 💾 تحميل الأكواد ومعانيها من جداول الوصف (Lookup Tables)
     # =========================================================
@@ -48,30 +47,26 @@ st.markdown("""
     st.subheader("📚 تنزيل الأكواد ومعانيها (عربي / إنجليزي)")
 
     if lookup_catalog:
-        # جمع كل الجداول الوصفية في ملف واحد
         lookup_combined = []
-
         for sheet_name, tbl in lookup_catalog.items():
             if len(tbl.columns) >= 2:
                 tbl = tbl.copy()
                 tbl.columns = [str(c).strip() for c in tbl.columns]
                 col_en = tbl.columns[0]
                 col_ar = tbl.columns[1]
-
                 tbl["SOURCE_SHEET"] = sheet_name
                 tbl.rename(columns={col_en: "Code / English", col_ar: "Arabic Meaning"}, inplace=True)
                 lookup_combined.append(tbl[["SOURCE_SHEET", "Code / English", "Arabic Meaning"]])
 
         if lookup_combined:
             lookup_all = pd.concat(lookup_combined, ignore_index=True)
-
             st.dataframe(
                 lookup_all.head(20).style.set_properties(**{"text-align": "right"}),
                 use_container_width=True,
                 hide_index=True
             )
 
-            # زر تنزيل ملف الأكواد الكامل
+            # زر التنزيل
             buf_lookup = io.BytesIO()
             with pd.ExcelWriter(buf_lookup, engine="openpyxl") as writer:
                 lookup_all.to_excel(writer, index=False, sheet_name="Lookup_Tables")
@@ -82,11 +77,11 @@ st.markdown("""
                 file_name=f"Lookup_Tables_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
         else:
             st.info("لم يتم العثور على جداول تحتوي على عمودين على الأقل (كود + معنى).")
     else:
         st.warning("⚠️ لا توجد جداول وصفية (Lookup) متاحة حالياً.")
+
 
 # =========================================================
 # التبويبات
