@@ -45,14 +45,16 @@ st.markdown("""
 # تحميل البيانات
 # =========================================================
 @st.cache_data(show_spinner=False)
+
+# =========================================================
+# تحميل البيانات مع إضافة سطر المعاني (Arabic Labels)
+# =========================================================
+@st.cache_data(show_spinner=False)
 def load_data():
     # البيانات الرئيسية
     df = pd.read_csv("MUN.csv", encoding="utf-8", low_memory=False)
-
-    # 🔧 توحيد أسماء الأعمدة (لضمان تطابق SERVICE و GENDER و CHANNEL وغيرها)
     df.columns = [c.strip().upper() for c in df.columns]
     df.columns = [c.replace('DIM', 'Dim') for c in df.columns]
-
 
     # الجداول الوصفية
     lookup_catalog = {}
@@ -63,7 +65,29 @@ def load_data():
             tbl = pd.read_excel(xls, sheet_name=sheet)
             tbl.columns = [str(c).strip().upper() for c in tbl.columns]
             lookup_catalog[sheet.strip().upper()] = tbl
+
+        # 🔹 محاولة جلب ورقة "Questions" لإضافة معاني الأعمدة
+        qsheet_key = next((k for k in lookup_catalog.keys() if "QUESTION" in k), None)
+        if qsheet_key:
+            qtbl = lookup_catalog[qsheet_key]
+            qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
+            code_col = next((c for c in qtbl.columns if "DIM" in c or "QUESTION" in c or "CODE" in c), None)
+            ar_col = next((c for c in qtbl.columns if "ARAB" in c), None)
+            if code_col and ar_col:
+                code_to_arabic = dict(zip(qtbl[code_col].astype(str).str.upper(),
+                                          qtbl[ar_col].astype(str)))
+                # إنشاء سطر معاني عربية للأعمدة الموجودة في df
+                arabic_row = []
+                for c in df.columns:
+                    key = c.strip().upper()
+                    arabic_row.append(code_to_arabic.get(key, ""))
+                # إدراج السطر العربي في الأعلى (اختياري)
+                arabic_df = pd.DataFrame([arabic_row], columns=df.columns)
+                df = pd.concat([arabic_df, df], ignore_index=True)
+
     return df, lookup_catalog
+
+
 
 def series_to_percent(vals: pd.Series):
     vals = pd.to_numeric(vals, errors="coerce").dropna()
