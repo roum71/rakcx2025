@@ -484,10 +484,6 @@ with tab_services:
                 st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 💬 تحليل أسباب عدم الرضا (Most_Unsat) مع فصل التعليقات بـ "/"
-# =========================================================
-st.subheader("💬 تحليل أسباب عدم الرضا في الخدمات الرقمية")
-# =========================================================
 # 💬 تحليل أسباب عدم الرضا (Most_Unsat) بطريقة Pareto
 # =========================================================
 st.subheader("💬 تحليل أسباب عدم الرضا في الخدمات الرقمية (Pareto)")
@@ -500,19 +496,18 @@ else:
     data_unsat.columns = ["Comment"]
     data_unsat["Comment"] = data_unsat["Comment"].astype(str).str.strip()
 
-    # استثناء الإجابات العامة أو الفارغة
-    # استثناء الإجابات العامة
-    exclude_terms = ["", " ", "لا يوجد", "لايوجد", "لاشيء", "لا شيء",
-                     "none", "no", "nothing", "nil", "جيد", "ممتاز", "ok", "تمام", "great"]
+    # 🧹 استبعاد الإجابات العامة أو الفارغة
+    exclude_terms = [
+        "", " ", "لا يوجد", "لايوجد", "لاشيء", "لا شيء",
+        "none", "no", "nothing", "nil", "جيد", "ممتاز", "ok", "تمام", "great"
+    ]
     data_unsat = data_unsat[~data_unsat["Comment"].str.lower().isin([t.lower() for t in exclude_terms])]
     data_unsat = data_unsat[data_unsat["Comment"].apply(lambda x: len(x.split()) >= 2)]
 
     if data_unsat.empty:
-        st.info("لا توجد ملاحظات نصية كافية بعد استبعاد الإجابات العامة.")
         st.info("لا توجد ملاحظات نصية كافية بعد التنظيف.")
     else:
         # 🔹 المحاور الخاصة بالخدمات الرقمية
-        # 🔹 المحاور المناسبة للخدمات الرقمية
         themes = {
             "السرعة / الأداء": ["بطء", "تأخير", "انتظار", "delay", "slow", "زمن", "وقت"],
             "التطبيق / المنصة": ["تطبيق", "app", "منصة", "system", "موقع", "بوابة", "صفحة"],
@@ -523,7 +518,6 @@ else:
             "الأمان / الدخول": ["كلمة مرور", "دخول", "login", "تحقق", "أمان"]
         }
 
-        # 🔍 تصنيف كل تعليق
         # 🔍 تصنيف التعليقات
         def classify_text(txt):
             t = txt.lower()
@@ -533,11 +527,8 @@ else:
             return "غير مصنّف"
 
         data_unsat["المحور"] = data_unsat["Comment"].apply(classify_text)
-
-        # 🧹 حذف التعليقات التي لم تصنّف
         data_unsat = data_unsat[data_unsat["المحور"] != "غير مصنّف"]
 
-        # 🔢 تجميع حسب المحور + ضمّ التعليقات بفاصل "/"
         # 🔢 تجميع وتحليل Pareto
         summary = data_unsat.groupby("المحور").agg({
             "Comment": lambda x: " / ".join(x.tolist())
@@ -550,36 +541,31 @@ else:
 
         # 🎨 التلوين حسب Pareto (أحمر للأعلى 80%)
         summary["اللون"] = np.where(summary["النسبة التراكمية (%)"] <= 80, "#E74C3C", "#BDC3C7")
+        if not summary[summary["النسبة التراكمية (%)"] > 80].empty:
+            first_above = summary[summary["النسبة التراكمية (%)"] > 80].index[0]
+            summary.loc[first_above, "اللون"] = "#E74C3C"
 
-        # 🧾 عرض الجدول
+        # 📋 عرض الجدول
         st.dataframe(
-            summary[["المحور", "عدد الملاحظات", "النسبة (%)", "Comment"]]
-            .rename(columns={"Comment": "التعليقات (مجمعة)"}).style.format({"النسبة (%)": "{:.1f}%"}),
             summary[["المحور", "عدد الملاحظات", "النسبة (%)", "النسبة التراكمية (%)", "Comment"]]
-            .rename(columns={"Comment": "التعليقات (مجمعة)"}).style.format({"النسبة (%)": "{:.1f}%", "النسبة التراكمية (%)": "{:.1f}%"}),
-            use_container_width=True, hide_index=True
+            .rename(columns={"Comment": "التعليقات (مجمعة)"})
+            .style.format({"النسبة (%)": "{:.1f}%", "النسبة التراكمية (%)": "{:.1f}%"}),
+            use_container_width=True,
+            hide_index=True
         )
 
-        # 📊 الرسم البياني
-        fig = px.bar(
-            summary, x="المحور", y="عدد الملاحظات",
-            text="النسبة (%)", color="المحور",
-            color_discrete_sequence=PASTEL,
-            title="تحليل أسباب عدم الرضا في الخدمات الرقمية"
         # 📊 رسم Pareto (أعمدة + منحنى تراكمي)
         fig = go.Figure()
 
-        # الأعمدة (Bars)
+        # الأعمدة
         fig.add_bar(
             x=summary["المحور"],
             y=summary["عدد الملاحظات"],
             marker_color=summary["اللون"],
             name="عدد الملاحظات"
         )
-        fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-        fig.update_layout(yaxis_title="عدد الملاحظات", xaxis_title="المحور")
 
-        # المنحنى التراكمي (Line)
+        # المنحنى التراكمي
         fig.add_scatter(
             x=summary["المحور"],
             y=summary["النسبة التراكمية (%)"],
@@ -591,7 +577,6 @@ else:
             line=dict(color="#2E86DE", width=3)
         )
 
-        # إعدادات الرسم
         fig.update_layout(
             title="📊 تحليل Pareto لأسباب عدم الرضا في الخدمات الرقمية",
             xaxis=dict(title="المحور", tickangle=-15),
@@ -604,20 +589,17 @@ else:
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # 💾 زر تنزيل Excel
-        # 💾 زر تنزيل النتائج
+        # 💾 تنزيل النتائج Excel
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-            summary.to_excel(writer, index=False, sheet_name="Unsat_Analysis")
             summary.to_excel(writer, index=False, sheet_name="Unsat_Pareto")
         st.download_button(
-            "📥 تنزيل جدول الملاحظات (Excel)",
             "📥 تنزيل نتائج Pareto (Excel)",
             data=buf.getvalue(),
-            file_name=f"Unsat_Analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             file_name=f"Unsat_Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 # =========================================================
