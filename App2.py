@@ -51,6 +51,7 @@ def load_data():
     
     # 🔧 توحيد أسماء الأعمدة (لضمان تطابق SERVICE و GENDER و CHANNEL وغيرها)
     df.columns = [c.strip().upper() for c in df.columns]
+    df.columns = [c.replace('DIM', 'Dim') for c in df.columns]
     
     
     # الجداول الوصفية
