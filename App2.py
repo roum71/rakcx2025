@@ -484,11 +484,10 @@ with tab_services:
                 st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 💬 تحليل أسباب عدم الرضا (Most_Unsat) — خدمات رقمية فقط
+# 💬 تحليل أسباب عدم الرضا (Most_Unsat) مع فصل التعليقات بـ "/"
 # =========================================================
 st.subheader("💬 تحليل أسباب عدم الرضا في الخدمات الرقمية")
 
-# التحقق من وجود العمود
 unsat_col = next((c for c in df_view.columns if "MOST_UNSAT" in c.upper()), None)
 if not unsat_col:
     st.warning("⚠️ لم يتم العثور على العمود Most_Unsat في البيانات.")
@@ -506,7 +505,7 @@ else:
     if data_unsat.empty:
         st.info("لا توجد ملاحظات نصية كافية بعد استبعاد الإجابات العامة.")
     else:
-        # 🔹 تعريف المحاور الخاصة بالخدمات الرقمية
+        # 🔹 المحاور الخاصة بالخدمات الرقمية
         themes = {
             "السرعة / الأداء": ["بطء", "تأخير", "انتظار", "delay", "slow", "زمن", "وقت"],
             "التطبيق / المنصة": ["تطبيق", "app", "منصة", "system", "موقع", "بوابة", "صفحة"],
@@ -514,37 +513,59 @@ else:
             "الرسوم / الدفع": ["رسوم", "دفع", "fee", "تكلفة", "سداد", "pay"],
             "التواصل / الدعم الفني": ["رد", "تواصل", "اتصال", "support", "response", "مساندة", "مساعدة"],
             "الوضوح / المعلومات": ["معلومة", "إيضاح", "clarity", "instructions", "بيانات", "شرح"],
-            "الأمان / الدخول": ["كلمة مرور", "دخول", "login", "تحقق", "أمان"],
-            "أخرى": []  # الافتراضي
+            "الأمان / الدخول": ["كلمة مرور", "دخول", "login", "تحقق", "أمان"]
         }
 
-        # 🔍 تصنيف النص حسب الكلمات المفتاحية
+        # 🔍 تصنيف كل تعليق
         def classify_text(txt):
             t = txt.lower()
             for theme, keywords in themes.items():
                 if any(k.lower() in t for k in keywords):
                     return theme
-            return "أخرى"
+            return "غير مصنّف"
 
         data_unsat["المحور"] = data_unsat["Comment"].apply(classify_text)
 
-        # 🔢 حساب التكرارات والنسب
-        summary = data_unsat["المحور"].value_counts().reset_index()
-        summary.columns = ["المحور", "عدد الملاحظات"]
+        # 🧹 حذف التعليقات التي لم تصنّف
+        data_unsat = data_unsat[data_unsat["المحور"] != "غير مصنّف"]
+
+        # 🔢 تجميع حسب المحور + ضمّ التعليقات بفاصل "/"
+        summary = data_unsat.groupby("المحور").agg({
+            "Comment": lambda x: " / ".join(x.tolist())
+        }).reset_index()
+
+        summary["عدد الملاحظات"] = summary["Comment"].apply(lambda x: len(x.split("/")))
         summary["النسبة (%)"] = summary["عدد الملاحظات"] / summary["عدد الملاحظات"].sum() * 100
 
-        # 🧾 عرض النتائج
-        st.dataframe(summary.style.format({"النسبة (%)": "{:.1f}%"}),
-                     use_container_width=True, hide_index=True)
+        # 🧾 عرض الجدول
+        st.dataframe(
+            summary[["المحور", "عدد الملاحظات", "النسبة (%)", "Comment"]]
+            .rename(columns={"Comment": "التعليقات (مجمعة)"}).style.format({"النسبة (%)": "{:.1f}%"}),
+            use_container_width=True, hide_index=True
+        )
 
-        # 📊 رسم بياني بالأعمدة
-        fig = px.bar(summary, x="المحور", y="عدد الملاحظات",
-                     text="النسبة (%)", color="المحور",
-                     color_discrete_sequence=PASTEL,
-                     title="تحليل أسباب عدم الرضا في الخدمات الرقمية")
+        # 📊 الرسم البياني
+        fig = px.bar(
+            summary, x="المحور", y="عدد الملاحظات",
+            text="النسبة (%)", color="المحور",
+            color_discrete_sequence=PASTEL,
+            title="تحليل أسباب عدم الرضا في الخدمات الرقمية"
+        )
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig.update_layout(yaxis_title="عدد الملاحظات", xaxis_title="المحور")
         st.plotly_chart(fig, use_container_width=True)
+
+        # 💾 زر تنزيل Excel
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            summary.to_excel(writer, index=False, sheet_name="Unsat_Analysis")
+        st.download_button(
+            "📥 تنزيل جدول الملاحظات (Excel)",
+            data=buf.getvalue(),
+            file_name=f"Unsat_Analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
 
 # =========================================================
 # تحسينات شكلية
