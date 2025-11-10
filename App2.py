@@ -42,14 +42,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# تحميل البيانات مع إضافة سطر المعاني (Arabic Labels)
+# تحميل البيانات
 # =========================================================
 @st.cache_data(show_spinner=False)
 def load_data():
     # البيانات الرئيسية
     df = pd.read_csv("MUN.csv", encoding="utf-8", low_memory=False)
+
+    # 🔧 توحيد أسماء الأعمدة (لضمان تطابق SERVICE و GENDER و CHANNEL وغيرها)
     df.columns = [c.strip().upper() for c in df.columns]
     df.columns = [c.replace('DIM', 'Dim') for c in df.columns]
+
 
     # الجداول الوصفية
     lookup_catalog = {}
@@ -60,27 +63,112 @@ def load_data():
             tbl = pd.read_excel(xls, sheet_name=sheet)
             tbl.columns = [str(c).strip().upper() for c in tbl.columns]
             lookup_catalog[sheet.strip().upper()] = tbl
-
-        # 🔹 محاولة جلب ورقة "Questions" لإضافة معاني الأعمدة
-        qsheet_key = next((k for k in lookup_catalog.keys() if "QUESTION" in k), None)
-        if qsheet_key:
-            qtbl = lookup_catalog[qsheet_key]
-            qtbl.columns = [str(c).strip().upper() for c in qtbl.columns]
-            code_col = next((c for c in qtbl.columns if "DIM" in c or "QUESTION" in c or "CODE" in c), None)
-            ar_col = next((c for c in qtbl.columns if "ARAB" in c), None)
-            if code_col and ar_col:
-                code_to_arabic = dict(zip(qtbl[code_col].astype(str).str.upper(),
-                                          qtbl[ar_col].astype(str)))
-                # إنشاء سطر معاني عربية للأعمدة الموجودة في df
-                arabic_row = []
-                for c in df.columns:
-                    key = c.strip().upper()
-                    arabic_row.append(code_to_arabic.get(key, ""))
-                # إدراج السطر العربي في الأعلى (اختياري)
-                arabic_df = pd.DataFrame([arabic_row], columns=df.columns)
-                df = pd.concat([arabic_df, df], ignore_index=True)
-
     return df, lookup_catalog
+
+def series_to_percent(vals: pd.Series):
+    vals = pd.to_numeric(vals, errors="coerce").dropna()
+    if len(vals) == 0:
+        return np.nan
+    mx = vals.max()
+    if mx <= 5:   # سلم 1-5
+        return ((vals - 1) / 4 * 100).mean()
+    elif mx <= 10:  # سلم 1-10
+        return ((vals - 1) / 9 * 100).mean()
+    else:        # بيانات جاهزة كنسب
+        return vals.mean()
+
+def detect_nps(df: pd.DataFrame):
+    cand_cols = [c for c in df.columns if ("NPS" in c.upper()) or ("RECOMMEND" in c.upper()) or ("NETPROMOTER" in c.upper())]
+    if not cand_cols:
+        return np.nan, 0, 0, 0, None
+    col = cand_cols[0]
+    s = pd.to_numeric(df[col], errors="coerce").dropna()
+    if len(s) == 0:
+        return np.nan, 0, 0, 0, col
+    promoters = (s >= 9).sum()
+    passives  = ((s >= 7) & (s <= 8)).sum()
+    detract   = (s <= 6).sum()
+    total     = len(s)
+    promoters_pct = promoters / total * 100
+    passives_pct  = passives  / total * 100
+    detract_pct   = detract   / total * 100
+    nps = promoters_pct - detract_pct
+    return nps, promoters_pct, passives_pct, detract_pct, col
+
+def autodetect_metric_cols(df: pd.DataFrame):
+    # نحاول التعرف على أعمدة CSAT و CES (قد تكون Dim6.1/Dim6.2 أو CSAT/CES أو FEES)
+    cols_upper = {c.upper(): c for c in df.columns}
+    # CSAT
+    csat_candidates = [c for c in df.columns if "CSAT" in c.upper()] 
+
+    csat_col = csat_candidates[0] if csat_candidates else None
+
+    #  Fees
+    ces_candidates = [c for c in df.columns if "FEES" in c.upper()]
+    ces_col = ces_candidates[0] if ces_candidates else None
+
+    # NPS
+    nps_candidates = [c for c in df.columns if "NPS" in c.upper()] 
+    nps_col = nps_candidates[0] if nps_candidates else None
+
+    return csat_col, ces_col, nps_col
+
+df, lookup_catalog = load_data()
+
+
+st.sidebar.header("🎛️ الفلاتر")
+# نحاول تطبيق ترجمة للأبعاد/المتغيرات باستخدام جداول الـ lookup إذا وجدت
+df_filtered = df.copy()
+
+# سنعرض فلاتر لأكثر الحقول شيوعًا؛ ويمكن التوسع تلقائيًا إذا وُجدت جداول مطابقة في الـ lookup
+candidate_filter_cols = []
+# أبعاد ديموغرافية أو وصفية شائعة
+common_keys = ["Language", "SERVICE", "AGE", "PERIOD", "CHANNEL"]
+candidate_filter_cols = [c for c in df.columns if any(k in c.upper() for k in common_keys)]
+
+# وظيفة لتطبيق جدول lookup إذا توفّر باسم العمود
+
+# وظيفة لتطبيق جدول lookup (تربط تلقائيًا بين الأكواد والأسماء العربية)
+def apply_lookup(column_name: str, s: pd.Series) -> pd.Series:
+    key = column_name.strip().upper()
+    # نحاول إيجاد جدول مطابق جزئياً في ملفات الوصف
+    match_key = next((k for k in lookup_catalog.keys() if key in k or k in key), None)
+    if not match_key:
+        return s
+
+    tbl = lookup_catalog[match_key].copy()
+    tbl.columns = [str(c).strip().upper() for c in tbl.columns]
+    if len(tbl.columns) < 2:
+        return s
+
+    code_col = tbl.columns[0]
+    name_col = tbl.columns[1]
+    map_dict = dict(zip(tbl[code_col].astype(str), tbl[name_col].astype(str)))
+    return s.astype(str).map(map_dict).fillna(s)
+
+# نُحضّر نسخة مترجمة للعرض في الفلاتر
+df_filtered_display = df_filtered.copy()
+for col in candidate_filter_cols:
+    df_filtered_display[col] = apply_lookup(col, df_filtered[col])
+
+with st.sidebar.expander("تطبيق/إزالة الفلاتر"):
+    applied_filters = {}
+    for col in candidate_filter_cols:
+        # طبّق الترجمة العربية إن وُجدت
+        df_filtered[col] = apply_lookup(col, df_filtered[col])
+        options = df_filtered_display[col].dropna().unique().tolist()
+        options_sorted = sorted(options, key=lambda x: str(x))
+        default = options_sorted  # افتراضيًا: الكل
+        sel = st.multiselect(f"{col}", options_sorted, default=default)
+        applied_filters[col] = sel
+
+# تطبيق الفلاتر
+for col, selected in applied_filters.items():
+    if selected:
+        df_filtered = df_filtered[df_filtered[col].isin(selected)]
+
+# البيانات النهائية للعرض
+df_view = df_filtered.copy()
 
 # =========================================================
 # التبويبات
