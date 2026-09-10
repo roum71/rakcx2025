@@ -958,7 +958,7 @@ with tab_pareto:
 
         empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
         df = df[~df["__clean"].isin(empty_terms)]
-        df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
+        df = df[df["__clean"].str.split().str.len() >= 3]
 
         # 🧭 تصنيف الملاحظات إلى محاور رئيسية
         themes = {
