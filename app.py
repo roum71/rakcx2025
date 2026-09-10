@@ -861,7 +861,7 @@ with tab_services:
                     "NPS / صافي نقاط الترويج (٪)": "{:.1f}%",
                     "عدد الردود / Responses": "{:,.0f}"
                 })
-                .applymap(color_cells, subset=["Happiness / سعادة (٪)", "Value / قيمة (٪)"])
+                .map(color_cells, subset=["Happiness / سعادة (٪)", "Value / قيمة (٪)"])
             )
             st.dataframe(styled_table, use_container_width=True)
 
